@@ -11,31 +11,47 @@ import SwiftUI
 struct Card: Identifiable {
     var id = UUID()
     var content: String
-    var isFaceUp = true
+    var isFaceUp = false
+    var isSelected = false // ✅ Track if card is selected
 }
 
 // MARK: - ContentView
 struct ContentView: View {
-    // Example themes
     let vehicleEmojis = ["🚗", "🚚", "🚀", "🚁", "🚲", "🛴", "🚂", "🚤", "🛶", "🚜"]
     let animalEmojis = ["🐶", "🐱", "🐭", "🐰", "🦊", "🐻", "🐼", "🐯", "🦁", "🐮"]
     let foodEmojis = ["🍎", "🍌", "🍉", "🍇", "🍒", "🍓", "🥝", "🥥", "🍍", "🥑"]
     
     @State var cards: [Card] = []
     @State var cardCount: Int = 4
+    @State private var emojis: [String] = []
     
     var body: some View {
         VStack {
+            title
             ScrollView {
-                title
-                cardsGrid
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))]) {
+                    ForEach(cards.prefix(cardCount)) { card in
+                        CardView(card: card)
+                            .aspectRatio(2/3, contentMode: .fit)
+                            .onTapGesture {
+                                flipCard(card)
+                            }
+                    }
+                }
+                .padding()
             }
+            .frame(maxHeight: .infinity)
+            
             Spacer()
+            
             cardCountAdjusters
-            themeButtons
-        }
-        .onAppear {
-            setTheme(with: vehicleEmojis, pairCount: min(vehicleEmojis.count, 4))
+            
+            HStack {
+                themeButton("Vehicles", emojis: vehicleEmojis, systemImage: "car.fill", pairCount: min(vehicleEmojis.count, 10))
+                themeButton("Animals", emojis: animalEmojis, systemImage: "pawprint.fill", pairCount: min(animalEmojis.count, 10))
+                themeButton("Food", emojis: foodEmojis, systemImage: "fork.knife", pairCount: min(foodEmojis.count, 10))
+            }
+            .padding(.top, 10)
         }
         .padding()
     }
@@ -47,22 +63,6 @@ struct ContentView: View {
             .padding()
     }
     
-    // MARK: - Cards Grid
-    var cardsGrid: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))]) {
-            ForEach(cards) { card in
-                CardView(card: card)
-                    .onTapGesture {
-                        if let index = cards.firstIndex(where: { $0.id == card.id }) {
-                            cards[index].isFaceUp.toggle()
-                        }
-                    }
-                    .aspectRatio(2/3, contentMode: .fit)
-            }
-        }
-        .foregroundColor(.orange)
-    }
-    
     // MARK: - Card Count Adjusters
     var cardCountAdjusters: some View {
         HStack {
@@ -72,106 +72,110 @@ struct ContentView: View {
         }
         .imageScale(.large)
         .font(.largeTitle)
-        .padding()
-    }
-    
-    func cardCountAdjuster(by offset: Int, symbol: String) -> some View {
-        Button(action: {
-            let newCount = cardCount + offset
-            if newCount > 0 && newCount <= cards.count {
-                cardCount = newCount
-            }
-        }, label: {
-            Image(systemName: symbol)
-                .font(.title) // Adjust size here if needed
-        })
-        .disabled(cardCount + offset < 1 || cardCount + offset > cards.count)
     }
     
     var cardRemover: some View {
-        cardCountAdjuster(by: -1, symbol: "rectangle.stack.badge.minus.fill")
+        Button(action: {
+            if cardCount > 1 {
+                cardCount -= 1
+            }
+        }) {
+            Image(systemName: "rectangle.stack.badge.minus.fill")
+        }
+        .disabled(cardCount <= 1)
     }
     
     var cardAdder: some View {
-        cardCountAdjuster(by: +1, symbol: "rectangle.stack.badge.plus.fill")
+        Button(action: {
+            if cardCount < cards.count {
+                cardCount += 1
+            }
+        }) {
+            Image(systemName: "rectangle.stack.badge.plus.fill")
+        }
+        .disabled(cardCount >= cards.count)
     }
     
     // MARK: - Theme Buttons
-    var themeButtons: some View {
-        HStack {
-            Button(action: {
-                setTheme(with: vehicleEmojis, pairCount: 4) // 4 pairs = 8 cards
-            }) {
-                VStack {
-                    Image(systemName: "car.fill")
-                    Text("Vehicles")
-                        .font(.caption)
-                }
+    func themeButton(_ title: String, emojis: [String], systemImage: String, pairCount: Int) -> some View {
+        Button(action: {
+            setTheme(with: emojis, pairCount: pairCount)
+        }) {
+            VStack {
+                Image(systemName: systemImage)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 40, height: 40)
+                Text(title)
+                    .font(.caption) // ✅ Smaller font for button text
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
-            Spacer()
-            Button(action: {
-                setTheme(with: animalEmojis, pairCount: 6) // 6 pairs = 12 cards
-            }) {
-                VStack {
-                    Image(systemName: "pawprint.fill")
-                    Text("Animals")
-                        .font(.caption)
-                }
-            }
-            Spacer()
-            Button(action: {
-                setTheme(with: foodEmojis, pairCount: 8) // 8 pairs = 16 cards
-            }) {
-                VStack {
-                    Image(systemName: "applelogo")
-                    Text("Food")
-                        .font(.caption)
-                }
-            }
+            .frame(width: 100, height: 100)
+            .background(Color.gray.opacity(0.2))
+            .cornerRadius(12)
         }
-        .padding(.horizontal, 40)
-        .font(.title2)
-        .foregroundColor(.blue)
     }
     
     // MARK: - Theme Setter
-    func setTheme(with emojis: [String], pairCount: Int) {
-        let pairs = min(pairCount, emojis.count) // Ensure not to exceed available emojis
-        let selectedEmojis = emojis.shuffled().prefix(pairs)
-        
-        // Create pairs and shuffle them
-        cards = (selectedEmojis + selectedEmojis).shuffled().enumerated().map { index, emoji in
-            Card(
-                id: cards.indices.contains(index) ? cards[index].id : UUID(),
-                content: emoji,
-                isFaceUp: cards.indices.contains(index) ? cards[index].isFaceUp : true
-            )
-        }
-        
-        cardCount = pairs * 2
+    // MARK: - Theme Setter
+    func setTheme(with newEmojis: [String], pairCount: Int) {
+        emojis = newEmojis.shuffled()
+        cards = emojis
+            .prefix(pairCount)
+            .enumerated()
+            .map { index, emoji in
+                Card(
+                    id: UUID(),
+                    content: emoji,
+                    isFaceUp: false // ✅ Cards start face down
+                )
+            }
+        cardCount = min(pairCount, 5) // ✅ Start with 5 cards by default
     }
     
-    // MARK: - CardView
-    struct CardView: View {
-        let card: Card
-        
-        var body: some View {
-            ZStack {
-                let base = RoundedRectangle(cornerRadius: 12)
-                Group {
-                    base.fill(.white)
-                    base.strokeBorder(lineWidth: 2)
-                    Text(card.content).font(.largeTitle)
-                }
-                .opacity(card.isFaceUp ? 1 : 0)
-                base.fill()
-                    .opacity(card.isFaceUp ? 0 : 1)
-                    .foregroundColor(.red)
+    // MARK: - Flip Card Logic
+    func flipCard(_ card: Card) {
+        if let index = cards.firstIndex(where: { $0.id == card.id }) {
+            withAnimation {
+                cards[index].isFaceUp.toggle()
+                cards[index].isSelected.toggle()
             }
         }
     }
 }
 
+// MARK: - CardView
+struct CardView: View {
+    let card: Card
+    
+    var body: some View {
+        ZStack {
+            let base = RoundedRectangle(cornerRadius: 12)
+            
+            if card.isFaceUp {
+                base
+                    .fill(Color.white)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.gray, lineWidth: 1) // ✅ Subtle gray border
+                    )
+                Text(card.content)
+                    .font(.largeTitle)
+                    .opacity(1)
+            } else {
+                base
+                    .fill(Color.orange.opacity(card.isSelected ? 0.5 : 1)) // ✅ Orange when selected
+                Text(card.content)
+                    .opacity(0) // ✅ Hide emoji when face down
+            }
+        }
+        .animation(.spring(), value: card.isSelected)
+    }
+}
+
+// MARK: - Preview
 #Preview {
     ContentView()
 }
+
