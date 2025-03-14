@@ -22,19 +22,16 @@ struct ContentView: View {
     let foodEmojis = ["🍎", "🍌", "🍉", "🍇", "🍒", "🍓", "🥝", "🥥", "🍍", "🥑"]
     
     @State var cards: [Card] = []
-    @State var cardCount: Int = 4
     @State private var emojis: [String] = []
     
     var body: some View {
-        VStack {
             title
             ScrollView {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))]) {
-                    ForEach(cards.prefix(cardCount)) { card in
-                        CardView(card: card)
+                    ForEach(emojis.indices, id: \.self) { index in
+                        CardView(card: emojis[index])
                             .aspectRatio(2/3, contentMode: .fit)
                             .onTapGesture {
-                                flipCard(card)
                             }
                     }
                 }
@@ -42,18 +39,12 @@ struct ContentView: View {
             }
             .frame(maxHeight: .infinity)
             
-            Spacer()
-            
-            cardCountAdjusters
-            
             HStack {
                 themeButton("Vehicles", emojis: vehicleEmojis, systemImage: "car.fill", pairCount: min(vehicleEmojis.count, 10))
                 themeButton("Animals", emojis: animalEmojis, systemImage: "pawprint.fill", pairCount: min(animalEmojis.count, 10))
                 themeButton("Food", emojis: foodEmojis, systemImage: "fork.knife", pairCount: min(foodEmojis.count, 10))
             }
             .padding(.top, 10)
-        }
-        .padding()
     }
     
     // MARK: - Title
@@ -61,39 +52,6 @@ struct ContentView: View {
         Text("Memorize!")
             .font(.largeTitle)
             .padding()
-    }
-    
-    // MARK: - Card Count Adjusters
-    var cardCountAdjusters: some View {
-        HStack {
-            cardRemover
-            Spacer()
-            cardAdder
-        }
-        .imageScale(.large)
-        .font(.largeTitle)
-    }
-    
-    var cardRemover: some View {
-        Button(action: {
-            if cardCount > 1 {
-                cardCount -= 1
-            }
-        }) {
-            Image(systemName: "rectangle.stack.badge.minus.fill")
-        }
-        .disabled(cardCount <= 1)
-    }
-    
-    var cardAdder: some View {
-        Button(action: {
-            if cardCount < cards.count {
-                cardCount += 1
-            }
-        }) {
-            Image(systemName: "rectangle.stack.badge.plus.fill")
-        }
-        .disabled(cardCount >= cards.count)
     }
     
     // MARK: - Theme Buttons
