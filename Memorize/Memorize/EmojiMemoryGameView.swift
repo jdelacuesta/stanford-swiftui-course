@@ -7,152 +7,142 @@
 
 import SwiftUI
 
-// MARK: - Card Model
-
-struct Card: Identifiable {
-    var id = UUID()
-    var content: String
-    var isFaceUp = false
-    var isSelected = false // ✅ Track if card is selected
+struct Theme {
+    var name: String
+    var emojis: [String]
+    var numberOfPairs: Int
+    var color: Color
 }
 
-// MARK: - ContentView
+// MARK: - Defining the MemoryGameModel with Themes
+
+class MemoryGameViewModel: ObservableObject {
+    @Published var cards: [MemoryGame<String>.Card]
+    @Published var currentTheme: Theme?
+    @Published var score = 0
+    
+    private let themes: [Theme] = [
+        Theme(name: "Animals", emojis: ["🐶", "🐱", "🐭", "🐹", "🐰", "🐻"], numberOfPairs: 3, color: .green),
+        Theme(name: "Faces", emojis: ["😀", "😁", "😃", "😄", "😅", "😆"], numberOfPairs: 3, color: .blue),
+        Theme(name: "Food", emojis: ["🍏", "🍔", "🍕", "🍦", "🍩", "🍓"], numberOfPairs: 3, color: .orange)
+    ]
+    
+    init(theme: Theme) {
+           self.currentTheme = theme
+           self.cards = MemoryGame<String>(numberOfPairsOfCards: theme.numberOfPairs) { pairIndex in
+               theme.emojis[pairIndex]
+           }.cards
+       }
+
+    func choose(_ card: MemoryGame<String>.Card) {
+           // Handle game logic here
+       }
+
+    func startNewGame(theme: Theme? = nil) {
+        if let theme = theme {
+            currentTheme = theme
+            cards = MemoryGame<String>(numberOfPairsOfCards: theme.numberOfPairs) { pairIndex in
+                theme.emojis[pairIndex]
+            }.cards
+        }
+    }
+}
+    
+
+//MARK: -
 
 struct EmojiMemoryGameView: View {
-    @ObservedObject var viewModel: EmojiMemoryGame
+    @ObservedObject var viewModel: MemoryGameViewModel
+    
     var body: some View {
         VStack {
-            ScrollView {
-                cards
-            }
-            Button("Shuffle") {
-            viewModel.shuffle()
+            gameGrid
+            themeButtons
+            newGameButton
         }
     }
+    
+    // MARK: - Game Grid
+    var gameGrid: some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 85), spacing: 0)], spacing: 0) {
+            ForEach(viewModel.cards.indices, id: \.self) { index in
+                CardView(card: viewModel.cards[index], action: {
+                    viewModel.choose(viewModel.cards[index])
+                })
+                .aspectRatio(2/3, contentMode: .fit)
+                .padding(4)
+            }
+        }
+        .foregroundColor(viewModel.currentTheme?.color ?? .green)
+        .frame(maxHeight: .infinity)
+    }
+    
+    // MARK: - Theme Buttons
+    var themeButtons: some View {
+        HStack {
+            themeButton("Vehicles", emojis: ["🚗", "🚚", "🚀", "🚁", "🚲", "🛴"], pairCount: 6)
+            themeButton("Animals", emojis: ["🐶", "🐱", "🐭", "🐰", "🦊", "🐻"], pairCount: 6)
+            themeButton("Food", emojis: ["🍎", "🍌", "🍉", "🍇", "🍒", "🍓"], pairCount: 6)
+        }
+        .padding(.top, 10)
+    }
+    
+    // MARK: - Theme Button Helper
+    private func themeButton(_ title: String, emojis: [String], pairCount: Int) -> some View {
+        Button(action: {
+            let theme = Theme(name: title, emojis: emojis, numberOfPairs: pairCount, color: .green)
+            viewModel.startNewGame(theme: theme)
+        }) {
+            VStack {
+                Image(systemName: "car.fill") // Example icon
+                Text(title)
+            }
+        }
+        .buttonStyle(.bordered)
         .padding()
-}
-    
-    let vehicleEmojis = ["🚗", "🚚", "🚀", "🚁", "🚲", "🛴", "🚂", "🚤", "🛶", "🚜"]
-    let animalEmojis = ["🐶", "🐱", "🐭", "🐰", "🦊", "🐻", "🐼", "🐯", "🦁", "🐮"]
-    let foodEmojis = ["🍎", "🍌", "🍉", "🍇", "🍒", "🍓", "🥝", "🥥", "🍍", "🥑"]
-    
-    @State var cards: [Card] = []
-    @State private var emojis: [String] = []
-    
-    var cards: some View {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 85), spacing: 0)], spacing: 0) {
-                ForEach(viewModel.cards.indices, id: \.self) { index in
-                    CardView(viewModel.cards[index])
-                        .aspectRatio(2/3, contentMode: .fit)
-                        .padding(4)
-                }
-            }
-            .foregroundColor(Color.orange)
-            .frame(maxHeight: .infinity)
-            
-            HStack {
-                themeButton("Vehicles", emojis: vehicleEmojis, systemImage: "car.fill", pairCount: min(vehicleEmojis.count, 10))
-                themeButton("Animals", emojis: animalEmojis, systemImage: "pawprint.fill", pairCount: min(animalEmojis.count, 10))
-                themeButton("Food", emojis: foodEmojis, systemImage: "fork.knife", pairCount: min(foodEmojis.count, 10))
-            }
-            .padding(.top, 10)
-        }
-        
-        // MARK: - Title
-        var title: some View {
-            Text("Memorize!")
-                .font(.largeTitle)
-                .padding()
-        }
-        
-        // MARK: - Theme Buttons
-        func themeButton(_ title: String, emojis: [String], systemImage: String, pairCount: Int) -> some View {
-            Button(action: {
-                setTheme(with: emojis, pairCount: pairCount)
-            }) {
-                VStack {
-                    Image(systemName: systemImage)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 40, height: 40)
-                    Text(title)
-                        .font(.caption) // ✅ Smaller font for button text
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                }
-                .frame(width: 100, height: 100)
-                .background(Color.gray.opacity(0.2))
-                .cornerRadius(12)
-            }
-        }
-        
-        // MARK: - Theme Setter
-        func setTheme(with newEmojis: [String], pairCount: Int) {
-            emojis = newEmojis.shuffled()
-            cards = emojis
-                .prefix(pairCount)
-                .enumerated()
-                .map { index, emoji in
-                    Card(
-                        id: UUID(),
-                        content: emoji,
-                        isFaceUp: false // ✅ Cards start face down
-                    )
-                }
-            cardCount = min(pairCount, 5) // ✅ Start with 5 cards by default
-        }
-        
-        // MARK: - Flip Card Logic
-        func flipCard(_ card: Card) {
-            if let index = cards.firstIndex(where: { $0.id == card.id }) {
-                withAnimation {
-                    cards[index].isFaceUp.toggle()
-                    cards[index].isSelected.toggle()
-                }
-            }
-        }
     }
     
-    // MARK: - CardView
-    struct CardView: View {
-        let card: MemoryGame<String>.Card
-        
-        init(card: MemoryGame<String>.Card {
-            self.card = card
+    // MARK: - New Game Button
+    var newGameButton: some View {
+        Button("New Game") {
+            viewModel.startNewGame()
         }
+        .buttonStyle(.bordered)
+        .padding()
+    }
+    
+    // MARK: - Card View
+    struct CardView: View {
+        var card: MemoryGame<String>.Card
+        var action: () -> Void
         
         var body: some View {
             ZStack {
-                let base = RoundedRectangle(cornerRadius: 12)
-                
-                if card.isFaceUp {
-                    base
-                        .fill(Color.white)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.gray, lineWidth: 1) // ✅ Subtle gray border
-                        )
-                    Text(card.content)
-                        .font(.system(size: 200))
-                        .minimumScaleFactor(0.01)
-                        .aspectRatio(1, contentMode: .fit)
-                    
-                } else {
-                    base
-                        .fill(Color.orange.opacity(card.isFaceUp ? 0.5 : 1)) // ✅ Orange when selected
-                    Text(card.content)
-                        .opacity(0) // ✅ Hide emoji when face down
-                }
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(card.isFaceUp ? Color.white : Color.blue)
+                    .shadow(radius: 5)
+                Text(card.content)
+                    .font(.largeTitle)
+                    .opacity(card.isFaceUp ? 1 : 0)
             }
-            .animation(.spring(), value: card.isFaceUp)
+            .frame(width: 75, height: 100)
+            .onTapGesture {
+                action()
+            }
         }
     }
+}
 
-    // MARK: - Preview
-    
-    struct EmojiMemoryGameView_Previews: PreviewProvider {
-        static var previews: some View {
-            EmojiMemoryGameView(viewModel: EmojiMemoryGame())
+struct EmojiMemoryGameView_Previews: PreviewProvider {
+    static var previews: some View {
+        Group {
+            EmojiMemoryGameView(viewModel: MemoryGameViewModel(theme: Theme(name: "Animals", emojis: ["🐶", "🐱", "🐭", "🐹", "🐰", "🐻"], numberOfPairs: 3, color: .green)))
+                .previewDevice("iPhone 15 Pro")
+                .preferredColorScheme(.light)
+            
+            EmojiMemoryGameView(viewModel: MemoryGameViewModel(theme: Theme(name: "Animals", emojis: ["🐶", "🐱", "🐭", "🐹", "🐰", "🐻"], numberOfPairs: 3, color: .green)))
+                .previewDevice("iPhone 15 Pro")
+                .preferredColorScheme(.dark)
         }
     }
-
+}
